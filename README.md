@@ -202,6 +202,6 @@ This project is released under the **MIT License**.
 
 ---
 
-**Author:** [Your Name]  
-**Email:** you@example.com  
-**LinkedIn:** [linkedin.com/in/yourprofile](https://linkedin.com/in/yourprofile)
+**Author:** Amit kumar
+**Email:** amitkrg83@gmail.com 
+**LinkedIn:** [linkedin.com/in/yourprofile]([https://www.linkedin.com/in/amitkrg83/)
