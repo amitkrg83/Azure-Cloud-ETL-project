@@ -204,4 +204,4 @@ This project is released under the **MIT License**.
 
 **Author:** Amit kumar
 **Email:** amitkrg83@gmail.com 
-**LinkedIn:** [linkedin.com/in/amitkrg83/]([https://www.linkedin.com/in/amitkrg83/)
+**LinkedIn:** [linkedin.com/in/amitkrg83](https://linkedin.com/in/amitkrg83)
