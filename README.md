@@ -1,207 +1,96 @@
-# ☁️ Cloud ETL Pipeline — Azure Databricks + Data Factory + Terraform + CI/CD
+# Cloud ETL Pipeline — Azure Databricks + Data Factory + Terraform + CI/CD
 
-A fully automated, production-ready **Cloud ETL pipeline** built with a modern, in-demand Azure data engineering stack.  
-This project demonstrates **infrastructure-as-code, data orchestration, and continuous delivery** for scalable and secure ETL workflows.
+A complete **learning project** for Amit's [Azure-Cloud-ETL-project](https://github.com/amitkrg83/Azure-Cloud-ETL-project).
+Run a real Spark pipeline locally, then deploy the Azure version when ready.
+The dataset is fictional retail sales, with deliberate errors that make each ETL step visible.
 
----
+## Start locally — no Azure account needed
 
-## 🚀 Architecture Overview
+Prerequisites: Git, **Python 3.10–3.12**, and **Java 17** (`java -version`).
+On Apple Silicon, install native ARM64 Python and Java; set `JAVA_HOME` if Java is not detected.
 
-### High-Level Flow
-```
-Data Sources → Ingestion (ADF / Auto Loader)
-→ Transformation (Databricks + Delta Lake)
-→ Storage (ADLS + Unity Catalog)
-→ Consumption (Power BI / ML)
-```
-
-### Core Components
-| Layer | Technology | Purpose |
-|--------|-------------|----------|
-| **Ingestion** | Azure Data Factory (ADF) | Orchestrate data extraction from APIs, databases, and files |
-| **Transformation** | Azure Databricks (Spark + Delta Lake) | Clean, standardize, and enrich data using PySpark |
-| **Storage** | ADLS Gen2 + Unity Catalog | Secure, hierarchical data storage and governance |
-| **Orchestration** | ADF + GitHub Actions | Automate and schedule ETL jobs |
-| **Infrastructure** | Terraform | Provision resources across environments (dev/test/prod) |
-| **Data Quality** | Great Expectations | Enforce schema and value-level data validation |
-| **Monitoring** | Azure Monitor + Log Analytics | Track pipeline runs, job metrics, and alerts |
-
----
-
-## 🧱 Project Structure
-
-```
-cloud-etl/
-├─ infra/                     # Terraform IaC
-│  ├─ main.tf                 # Providers and Resource Groups
-│  ├─ datalake.tf             # ADLS Gen2 + containers
-│  ├─ databricks.tf           # Workspace + cluster setup
-│  ├─ datafactory.tf          # Pipelines and Linked Services
-│  ├─ keyvault.tf             # Secrets and credentials
-│  ├─ monitor.tf              # Log Analytics and Alerts
-│  └─ env/dev.tfvars          # Environment variables
-│
-├─ etl/
-│  ├─ bronze/ingest_autoloader.py    # Ingest raw data using Spark Auto Loader
-│  ├─ silver/clean_and_conform.py    # Clean, validate, and standardize data
-│  ├─ gold/business_curations.py     # Aggregation and business-ready datasets
-│  ├─ common/io_utils.py             # Utility functions for reads/writes
-│  └─ common/expectations/           # Great Expectations data validation
-│
-├─ adf/
-│  ├─ pipelines/ingest_pipeline.json # ADF JSON definition
-│  └─ datasets_linkedservices/       # Source/Target connection definitions
-│
-├─ tests/
-│  ├─ unit/test_io_utils.py          # Unit tests for helper functions
-│  └─ dq/test_expectations.py        # Data quality tests
-│
-├─ .github/workflows/
-│  ├─ ci.yml                         # Linting + Unit Tests on PRs
-│  └─ cd-infra-and-jobs.yml          # Terraform Deploy + Databricks sync
-│
-├─ .pre-commit-config.yaml
-├─ Makefile
-└─ README.md
-```
-
----
-
-## 🔧 Setup Instructions
-
-### 1️⃣ Prerequisites
-- Azure Subscription (Contributor or Owner role)
-- Service Principal with:
-  - `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`
-- Installed locally:
-  - `terraform`, `az`, `python3`, `databricks-cli`, `git`
-
----
-
-### 2️⃣ Clone the Repo
 ```bash
-git clone https://github.com/<yourusername>/cloud-etl.git
-cd cloud-etl
+git clone https://github.com/amitkrg83/Azure-Cloud-ETL-project.git
+cd Azure-Cloud-ETL-project
+# If using the downloadable project, unpack it and cd into its folder instead.
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e '.[dev]'
+python scripts/run_local.py
+python -m pytest -q
 ```
 
----
-
-### 3️⃣ Initialize Terraform
+If Spark cannot resolve your Mac hostname:
 ```bash
-cd infra
-terraform init
-terraform workspace new dev || terraform workspace select dev
-terraform apply -var-file=env/dev.tfvars
+SPARK_LOCAL_IP=127.0.0.1 python scripts/run_local.py
 ```
 
-This provisions:
-- Resource Group  
-- ADLS Gen2 (raw, bronze, silver, gold)  
-- Databricks Workspace + Cluster  
-- Azure Data Factory  
-- Key Vault + Log Analytics  
+Local execution uses PySpark + Parquet. Azure execution uses the **same transformation functions**,
+with Delta Lake and Unity Catalog. The local run does not emulate ADF, Azure identities, or Delta transactions.
 
----
+## What connects to what?
 
-### 4️⃣ Configure Databricks CLI
-```bash
-databricks configure --host https://<databricks-instance> --token <PAT_TOKEN>
+```mermaid
+flowchart TD
+  A["Dummy CSV: customers, products, orders"] --> B["ADLS landing"]
+  B --> C["ADF Copy activity"]
+  C --> D["ADLS bronze: unchanged CSV"]
+  D --> E["Databricks notebook: PySpark"]
+  E --> F["Silver: valid, deduplicated Delta orders"]
+  E --> G["Quarantine: rejected rows and reasons"]
+  F --> H["Gold: daily sales by region/category"]
+  E --> I["Audit: row counts and run ID"]
+  J["Terraform"] -. provisions .-> C
+  J -. provisions .-> E
+  K["GitHub Actions"] -. tests and deploys .-> J
 ```
 
----
+| Piece | What it does | File to open |
+|---|---|---|
+| Dummy data | 3 customers, 3 products, 12 order records | `data/sample/*.csv` |
+| Bronze | Exact source copy; retains duplicates and invalid values | ADF Copy in `infra/azure/main.tf` |
+| Silver | Casts values, validates, joins dimensions, keeps latest valid order | `src/cloud_etl/transforms.py` |
+| Quarantine | Retains original JSON plus rejection reasons | `transform()` in the same module |
+| Gold | Sums completed sales by date, region, category | `transform()` in the same module |
+| Databricks | Executes Spark and writes external Delta tables | `notebooks/run_pipeline.py` |
+| Unity Catalog | Grants identity access to external storage/table namespace | `infra/databricks/main.tf` |
+| Data Factory | Runs Copy → Notebook with retries and concurrency=1 | `infra/azure/main.tf` |
+| Terraform | Creates Azure resources, identities, permissions, and notebook | `infra/azure`, `infra/databricks` |
+| CI | Runs tests, local example, lint, Terraform validation | `.github/workflows/ci.yml` |
+| CD | Manual OIDC deployment, sample upload, ADF run | `.github/workflows/deploy.yml` |
+| Monitoring | ADF pipeline/activity diagnostics to Log Analytics | `infra/azure/main.tf` |
 
-### 5️⃣ Run ETL Jobs
-Use the ADF pipeline trigger or Databricks notebook jobs directly.
+## Expected result
 
-Example (manual test):
-```bash
-databricks workspace import_dir etl /Shared/etl --overwrite
-databricks jobs run-now --job-id <your-job-id>
-```
+| Metric | Expected |
+|---|---:|
+| Raw records | 12 |
+| Silver orders | 5 |
+| Quarantine records | 5 |
+| Duplicate/superseded records removed | 2 |
+| Gold groups | 4 |
+| Completed sales revenue | $550.00 |
 
----
+| Date | Region | Category | Orders | Units | Revenue |
+|---|---|---|---:|---:|---:|
+| 2026-10-01 | California | Furniture | 1 | 1 | 200.00 |
+| 2026-10-01 | Texas | Electronics | 1 | 2 | 100.00 |
+| 2026-10-02 | California | Electronics | 1 | 3 | 150.00 |
+| 2026-10-02 | Texas | Electronics | 1 | 4 | 100.00 |
 
-### 6️⃣ Verify Delta Tables
-```sql
--- Inside Databricks SQL or notebook
-SELECT * FROM main.bronze.sales_raw LIMIT 10;
-SELECT * FROM main.silver.sales LIMIT 10;
-SELECT * FROM main.gold.daily_sales ORDER BY d DESC;
-```
+Local outputs appear under `output/`: bronze CSV, silver/gold/quarantine Parquet, and `metrics.json`.
+The local runner asserts the exact expected metrics for the supplied sample; update that fixture when changing the dataset.
 
----
+## Learn and deploy
 
-## 🔁 CI/CD Workflow
+1. Read [the step-by-step walkthrough](docs/WALKTHROUGH.md).
+2. Follow [Azure setup and deployment](docs/AZURE_SETUP.md).
+3. Follow [GitHub Actions configuration](docs/CICD.md).
+4. Use [troubleshooting and cleanup](docs/OPERATIONS.md).
 
-**GitHub Actions** automates:
-- `ci.yml`: Linting, unit tests, and data quality validation on every pull request.  
-- `cd-infra-and-jobs.yml`: Applies Terraform infra and syncs Databricks jobs to prod when merged into `main`.
+This is a small, full-snapshot, public-endpoint demo. It does not implement streaming, Auto Loader,
+Great Expectations, private networking, Power BI provisioning, or production SLAs.
+Cloud deployment requires your Azure login, permissions, a Unity Catalog metastore/catalog, and compute quota.
+No Azure resources are created by the local commands.
 
-Secrets required in GitHub repo:
-- `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_SUBSCRIPTION_ID`, `AZURE_CLIENT_SECRET`
-- `DATABRICKS_HOST`, `DATABRICKS_TOKEN`
-
----
-
-## 🔍 Monitoring & Alerts
-
-- Azure Monitor & Log Analytics collect Databricks job and ADF pipeline logs.
-- Alerts are configured for:
-  - Job or pipeline failures
-  - Cost overages
-  - Key Vault access anomalies
-
----
-
-## 🛡️ Security & Governance
-
-- All secrets are stored in **Azure Key Vault**.  
-- **Unity Catalog** manages fine-grained access control across bronze, silver, and gold tables.  
-- **RBAC** + **Private Endpoints** ensure secure data flow.
-
----
-
-## 🌟 Features
-
-✅ Cloud-native, serverless ETL  
-✅ Delta Lake with schema evolution  
-✅ Great Expectations-based data validation  
-✅ Infrastructure-as-Code (Terraform)  
-✅ Automated CI/CD with GitHub Actions  
-✅ Monitored and governed with Azure tools  
-
----
-
-## 📈 Future Enhancements
-
-- Add streaming ingestion (Event Hub → Delta Live Tables)
-- Implement MLflow tracking for data drift
-- Deploy using Azure DevOps pipelines as an alternative CI/CD
-- Add dbt for SQL-based transformation in Gold layer
-
----
-
-## 🤝 Contributing
-
-1. Create a new feature branch:
-   ```bash
-   git checkout -b feature/<feature-name>
-   ```
-2. Commit and push changes:
-   ```bash
-   git commit -m "Add: <change description>"
-   git push origin feature/<feature-name>
-   ```
-3. Submit a Pull Request for review.
-
----
-
-## 📜 License
-
-This project is released under the **MIT License**.
-
----
-
-**Author:** Amit kumar
-**Email:** amitkrg83@gmail.com 
-**LinkedIn:** [linkedin.com/in/amitkrg83](https://linkedin.com/in/amitkrg83)
+MIT license: see [LICENSE](LICENSE).

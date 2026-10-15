@@ -1,0 +1,5 @@
+order_date,region,category,order_count,units,revenue
+2026-10-01,California,Furniture,1,1,200.00
+2026-10-01,Texas,Electronics,1,2,100.00
+2026-10-02,California,Electronics,1,3,150.00
+2026-10-02,Texas,Electronics,1,4,100.00

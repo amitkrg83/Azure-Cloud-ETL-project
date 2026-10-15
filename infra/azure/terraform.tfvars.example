@@ -1,0 +1,8 @@
+subscription_id = "00000000-0000-0000-0000-000000000000"
+prefix = "amitetl"
+location = "eastus2"
+catalog = "main"
+schema = "etl_demo"
+# Verify runtime availability and regional VM quota before deployment.
+spark_version = "15.4.x-scala2.12"
+node_type = "Standard_D4ds_v5"
